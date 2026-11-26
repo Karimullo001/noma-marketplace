@@ -14,8 +14,9 @@ export const TELEGRAM_CONFIG = {
   sellerBotUsername: "noma_sotuvchibot",
   adminBotUsername: "nomaadmin_bot",
 
-  // Admin Chat ID (strictly protected)
-  adminChatId: process.env.TELEGRAM_ADMIN_CHAT_ID || "7121005635",
+  // Admin Chat IDs (strictly protected, supports multiple admins)
+  adminChatId: (process.env.TELEGRAM_ADMIN_CHAT_ID || "7121005635,8826379163").split(",")[0].trim(),
+  adminChatIds: (process.env.TELEGRAM_ADMIN_CHAT_ID || "7121005635,8826379163").split(",").map(id => id.trim()).filter(Boolean),
 
   // Webhook secret for request verification
   webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || "noma-telegram-webhook-secret-2026",
@@ -41,4 +42,14 @@ export function getBotToken(botType: BotType): string {
 
 export function isBotConfigured(botType: BotType): boolean {
   return Boolean(getBotToken(botType));
+}
+
+export function getAdminChatIds(): string[] {
+  return [...TELEGRAM_CONFIG.adminChatIds];
+}
+
+export function isAdminChatId(chatId?: string | number | null): boolean {
+  if (!chatId) return false;
+  const str = chatId.toString().trim();
+  return TELEGRAM_CONFIG.adminChatIds.includes(str);
 }

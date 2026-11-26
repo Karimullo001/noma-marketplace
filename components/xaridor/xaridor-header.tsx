@@ -14,6 +14,7 @@ import {
   LogOut,
   Package,
   Store as StoreIcon,
+  Sparkles,
 } from "lucide-react";
 import { NomaLogo } from "@/components/shared/noma-logo";
 import { createClient } from "@/lib/supabase/client";
@@ -78,6 +79,13 @@ export function XaridorHeader({
             </select>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              href="/xaridor/ai-stilist"
+              className="text-amber-300 hover:text-white transition inline-flex items-center gap-1 font-bold"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>AI Stilist (Look)</span>
+            </Link>
             <Link
               href="/sotuvchi"
               className="hover:text-accent-200 transition inline-flex items-center gap-1 font-medium"

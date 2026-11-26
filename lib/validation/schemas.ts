@@ -35,7 +35,9 @@ export const storeCreateSchema = z.object({
   city: z.string().trim().default("Namangan"),
   category: z.string().trim().min(2, "Do'kon yo'nalishini tanlang").max(80),
   phone: uzPhoneSchema,
-  logo_url: z.string().url().optional().nullable(),
+  logo_url: z.string().url().optional().nullable().or(z.literal("")),
+  banner_url: z.string().url().optional().nullable().or(z.literal("")),
+  working_hours: z.string().trim().max(100).optional(),
   telegram: z.string().trim().max(80).optional(),
   instagram: z.string().trim().max(80).optional(),
 });

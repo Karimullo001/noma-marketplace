@@ -282,8 +282,8 @@ export async function notifyAdminNewStore(storeId: string): Promise<void> {
   const admin = createAdminSupabaseClient();
   if (!admin) return;
 
-  const adminChatId = TELEGRAM_CONFIG.adminChatId;
-  if (!adminChatId) return;
+  const adminChatIds = TELEGRAM_CONFIG.adminChatIds;
+  if (!adminChatIds || adminChatIds.length === 0) return;
 
   try {
     const { data: store, error } = await admin
@@ -306,27 +306,29 @@ export async function notifyAdminNewStore(storeId: string): Promise<void> {
       `👤 <b>Egasi:</b> ${sellerInfo}\n` +
       `Holat: <b>${store.status}</b>`;
 
-    await enqueueTelegramNotification({
-      botType: "admin",
-      chatId: adminChatId,
-      payload: {
-        text,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: "❌ Do'konni to'xtatish",
-                callback_data: `suspend_store:${store.id}`,
-              },
-              {
-                text: "📊 Statistika",
-                callback_data: "admin_stats",
-              },
+    for (const chatId of adminChatIds) {
+      await enqueueTelegramNotification({
+        botType: "admin",
+        chatId: chatId,
+        payload: {
+          text,
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "❌ Do'konni to'xtatish",
+                  callback_data: `suspend_store:${store.id}`,
+                },
+                {
+                  text: "📊 Statistika",
+                  callback_data: "admin_stats",
+                },
+              ],
             ],
-          ],
+          },
         },
-      },
-    });
+      });
+    }
   } catch (err) {
     console.error("[Telegram Events] Error in notifyAdminNewStore:", err);
   }

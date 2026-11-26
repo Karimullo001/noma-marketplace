@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TELEGRAM_CONFIG } from "@/lib/telegram/config";
+import { TELEGRAM_CONFIG, isAdminChatId } from "@/lib/telegram/config";
 import { sendTelegramMessage, answerTelegramCallbackQuery, editTelegramMessageText } from "@/lib/telegram/client";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { formatPrice } from "@/lib/utils";
@@ -12,11 +12,10 @@ export async function POST(req: NextRequest) {
     const update: TelegramUpdate = await req.json();
 
     // 1. Strict Admin Chat ID Guard
-    // Any incoming message or callback NOT from TELEGRAM_ADMIN_CHAT_ID gets NO response.
+    // Any incoming message or callback NOT from authorized Admin IDs gets NO response.
     const senderChatId = update.message?.chat.id || update.callback_query?.message?.chat.id;
-    const adminChatId = TELEGRAM_CONFIG.adminChatId;
 
-    if (!senderChatId || senderChatId.toString() !== adminChatId.toString()) {
+    if (!senderChatId || !isAdminChatId(senderChatId)) {
       // Silently ignore unauthorized chats
       return NextResponse.json({ ok: true, ignored: true });
     }
@@ -44,6 +43,14 @@ export async function POST(req: NextRequest) {
           `• /panel — Veb admin paneliga kirish`,
         reply_markup: {
           inline_keyboard: [
+            [
+              {
+                text: "📱 Admin Mini App",
+                web_app: {
+                  url: `${TELEGRAM_CONFIG.siteUrl}/admin/tg`,
+                },
+              },
+            ],
             [
               {
                 text: "📊 Statistikani ko'rish",

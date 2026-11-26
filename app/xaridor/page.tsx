@@ -109,6 +109,13 @@ export default async function XaridorHomePage() {
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
                 <Link
+                  href="/xaridor/ai-stilist"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 text-xs sm:text-sm font-black transition shadow-md active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4 text-zinc-950" />
+                  <span>AI Stilist (Look)</span>
+                </Link>
+                <Link
                   href="/xaridor/katalog"
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent hover:bg-accent-700 text-white text-xs sm:text-sm font-semibold transition shadow-md active:scale-95"
                 >

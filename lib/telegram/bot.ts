@@ -1,4 +1,4 @@
-import { isTelegramConfigured } from "@/lib/config";
+import { isTelegramConfigured, getAdminChatIds } from "@/lib/config";
 
 interface TelegramSellerCodePayload {
   applicantName: string;
@@ -22,8 +22,8 @@ export async function sendSellerCodeToAdminTelegram(
     };
   }
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN!;
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID!;
+  const botToken = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN!;
+  const chatIds = getAdminChatIds();
 
   const tashkentTime = new Intl.DateTimeFormat("uz-Latn-UZ", {
     timeZone: "Asia/Tashkent",
@@ -61,19 +61,16 @@ export async function sendSellerCodeToAdminTelegram(
   ].join("\n");
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "Markdown",
-      }),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      return { sent: false, error: `Telegram API xatosi (${res.status}): ${errBody.slice(0, 120)}` };
+    for (const chatId of chatIds) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: "Markdown",
+        }),
+      });
     }
 
     return { sent: true };

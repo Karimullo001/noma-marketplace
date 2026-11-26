@@ -23,6 +23,10 @@ export function ProfileClient({
   const [street, setStreet] = useState("");
   const [addrPhone, setAddrPhone] = useState(profile.phone || "+998");
 
+  const [compSubject, setCompSubject] = useState("");
+  const [compDesc, setCompDesc] = useState("");
+  const [compStatus, setCompStatus] = useState<string | null>(null);
+
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavedMsg(null);
@@ -157,6 +161,66 @@ export function ProfileClient({
           />
           <button type="submit" className="px-4 py-2 rounded-xl bg-accent text-white text-xs font-bold">
             Manzil qo&apos;shish
+          </button>
+        </form>
+      </div>
+
+      {/* Shikoyat / Murojaat */}
+      <div className="bg-white p-6 rounded-2xl border border-border space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-primary">Shikoyat yoki murojaat yuborish</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Do&apos;kon, buyurtma yoki xizmat sifatidan norozi bo&apos;lsangiz, to&apos;g&apos;ridan-to&apos;g&apos;ri ma&apos;muriyatga yozing.
+          </p>
+        </div>
+        {compStatus && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+            {compStatus}
+          </div>
+        )}
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setCompStatus(null);
+            const res = await fetch("/api/complaints", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                subject: compSubject,
+                description: compDesc,
+                target_type: "platform",
+                phone: phone || addrPhone,
+              }),
+            });
+            if (res.ok) {
+              setCompStatus("✅ Murojaatingiz Admin panelga yuborildi!");
+              setCompSubject("");
+              setCompDesc("");
+            } else {
+              const d = await res.json();
+              setErrMsg(d.error || "Xatolik");
+            }
+          }}
+          className="space-y-3"
+        >
+          <input
+            type="text"
+            required
+            value={compSubject}
+            onChange={(e) => setCompSubject(e.target.value)}
+            placeholder="Mavzu (masalan: Buyurtma kechikdi)"
+            className="w-full h-9 rounded-lg border border-border px-3 text-xs bg-background"
+          />
+          <textarea
+            rows={3}
+            required
+            value={compDesc}
+            onChange={(e) => setCompDesc(e.target.value)}
+            placeholder="Batafsil izoh yozing..."
+            className="w-full rounded-lg border border-border p-3 text-xs bg-background resize-none"
+          />
+          <button type="submit" className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold">
+            Adminga yuborish
           </button>
         </form>
       </div>

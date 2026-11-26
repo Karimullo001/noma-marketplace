@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient, parseCookieHeader, type CookieOptions } from "@supabase/ssr";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { isAdminEmail } from "@/lib/config";
+import { isAdminEmail, getSellerCodeExpiryHours } from "@/lib/config";
+import { generateOneTimeSellerCode, hashInvitationCode, getCodePrefix } from "@/lib/security/code-hash";
+import { sendSellerCodeToAdminTelegram } from "@/lib/telegram/bot";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -59,6 +61,10 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
+        const rawCookieHeader = request.headers.get("cookie") ?? "";
+        if (rawCookieHeader) {
+          return parseCookieHeader(rawCookieHeader);
+        }
         return request.cookies.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
@@ -82,9 +88,10 @@ export async function GET(request: NextRequest) {
     console.error(`[Auth Callback] exchangeCodeForSession failed (${errorStatus}): ${errorMsg}`);
 
     let errCode = "exchange_failed";
-    if (errorMsg.toLowerCase().includes("code verifier") || errorMsg.toLowerCase().includes("pkce")) {
+    const lower = errorMsg.toLowerCase();
+    if (lower.includes("verifier") || lower.includes("pkce")) {
       errCode = "pkce_verifier_missing";
-    } else if (errorMsg.toLowerCase().includes("expired")) {
+    } else if (lower.includes("expired") || lower.includes("invalid_grant")) {
       errCode = "code_expired";
     }
 
@@ -93,14 +100,16 @@ export async function GET(request: NextRequest) {
       publicOrigin
     );
     failureUrl.searchParams.set("error", errCode);
+    failureUrl.searchParams.set("desc", errorMsg);
     return NextResponse.redirect(failureUrl);
   }
 
   const user = data.user;
   console.log(`[Auth Callback] Session created successfully for user: ${user.id} (${user.email || "no-email"})`);
 
-  // Sync admin role exclusively from ADMIN_EMAILS server-side env var
   const adminClient = createAdminSupabaseClient();
+
+  // 1. Sync admin role exclusively from ADMIN_EMAILS server-side env var
   if (adminClient && user.email && isAdminEmail(user.email)) {
     try {
       await adminClient
@@ -114,19 +123,97 @@ export async function GET(request: NextRequest) {
         });
 
       if (next.startsWith("/admin")) {
-        return NextResponse.redirect(new URL("/admin", publicOrigin));
+        const adminRedirect = NextResponse.redirect(new URL("/admin", publicOrigin));
+        response.cookies.getAll().forEach((c) => adminRedirect.cookies.set(c.name, c.value, c));
+        return adminRedirect;
       }
     } catch (adminErr) {
       console.error("[Auth Callback] Failed to upsert admin profile:", adminErr);
     }
   }
 
-  // If user signed in via /admin/kirish but is not in ADMIN_EMAILS, reject admin cabinet
+  // 2. If user signed in via /admin/kirish but is not in ADMIN_EMAILS, reject admin cabinet
   if (next.startsWith("/admin") && !isAdminEmail(user.email)) {
     await supabase.auth.signOut();
     const notAdminUrl = new URL("/admin/kirish", publicOrigin);
     notAdminUrl.searchParams.set("error", "not_admin");
     return NextResponse.redirect(notAdminUrl);
+  }
+
+  // 3. SELLER ONBOARDING & VERIFICATION FLOW
+  // User wants to be a seller (next starts with /sotuvchi).
+  // If not yet an active seller, generate a one-time invitation code, send it to the Admin Bot,
+  // and redirect the seller to /sotuvchi/tasdiqlash where they MUST enter the code!
+  if (next.startsWith("/sotuvchi") && adminClient) {
+    try {
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("role, full_name, email")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.role !== "seller" && profile?.role !== "admin") {
+        const plaintextCode = generateOneTimeSellerCode();
+        const codeHash = hashInvitationCode(plaintextCode);
+        const codePrefix = getCodePrefix(plaintextCode);
+        const expiryHours = getSellerCodeExpiryHours();
+        const expiresAt = new Date(Date.now() + expiryHours * 3600_000).toISOString();
+
+        // Revoke any previous unused codes
+        await adminClient
+          .from("seller_invitation_codes")
+          .update({ is_revoked: true })
+          .eq("applicant_id", user.id)
+          .eq("is_used", false);
+
+        const applicantName =
+          profile?.full_name ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          "Yangi Sotuvchi";
+        const applicantEmail = user.email || profile?.email || "Email ko'rsatilmagan";
+
+        // Create pending seller application record
+        const { data: appData } = await adminClient
+          .from("seller_applications")
+          .insert({
+            user_id: user.id,
+            full_name: applicantName,
+            email: applicantEmail,
+            status: "pending",
+          })
+          .select("id")
+          .single();
+
+        if (appData) {
+          await adminClient.from("seller_invitation_codes").insert({
+            application_id: appData.id,
+            applicant_id: user.id,
+            code_hash: codeHash,
+            code_prefix: codePrefix,
+            expires_at: expiresAt,
+          });
+        }
+
+        // Send one-time code to Admin Telegram Bot
+        await sendSellerCodeToAdminTelegram({
+          applicantName,
+          applicantEmail,
+          code: plaintextCode,
+          expiresAtIso: expiresAt,
+        });
+
+        // Redirect seller to verification code page with cookies preserved
+        const verifyUrl = new URL("/sotuvchi/tasdiqlash", publicOrigin);
+        verifyUrl.searchParams.set("notice", "code_sent_to_admin");
+
+        const verifyResponse = NextResponse.redirect(verifyUrl);
+        response.cookies.getAll().forEach((c) => verifyResponse.cookies.set(c.name, c.value, c));
+        return verifyResponse;
+      }
+    } catch (sellerErr) {
+      console.error("[Auth Callback] Seller onboarding check failed:", sellerErr);
+    }
   }
 
   return response;

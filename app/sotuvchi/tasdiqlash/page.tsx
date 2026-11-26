@@ -6,7 +6,11 @@ import { VerifyCodeClient } from "@/components/sotuvchi/verify-code-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function SotuvchiTasdiqlashPage() {
+export default async function SotuvchiTasdiqlashPage({
+  searchParams,
+}: {
+  searchParams?: { notice?: string };
+}) {
   const supabase = await createServerSupabaseClient();
   if (!supabase) redirect("/sotuvchi/kirish");
 
@@ -32,6 +36,11 @@ export default async function SotuvchiTasdiqlashPage() {
           <h1 className="text-2xl font-black text-primary">
             Do&apos;koningiz uchun maxsus taklif kodini kiriting
           </h1>
+          {searchParams?.notice === "code_sent_to_admin" && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+              ✅ Administrator Telegram botiga tasdiqlash kodi yuborildi. Administrator taqdim etgan kodni kiriting — shundan so&apos;ng sotuvchi kabineti ochiladi.
+            </p>
+          )}
         </div>
         <VerifyCodeClient />
       </div>

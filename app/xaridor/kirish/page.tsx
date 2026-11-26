@@ -60,7 +60,7 @@ export default function XaridorKirishPage({
         </Link>
         <h1 className="text-2xl font-black text-primary">Hisobingizga kiring</h1>
         <p className="text-xs text-muted-foreground">
-          Buyurtma berish va saralanganlarni saqlash uchun telefon raqamingiz, Google yoki Apple ID orqali kiring.
+          Buyurtma berish, saralanganlarni saqlash va AI Stilistdan foydalanish uchun Google hisobingiz orqali kiring.
         </p>
       </div>
 
@@ -75,23 +75,19 @@ export default function XaridorKirishPage({
       )}
 
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-border shadow-sm space-y-6">
-        <SmsOtpForm smsEnabled={authStatus.sms} supabaseReady={authStatus.supabaseReady} />
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-3 text-muted-foreground font-semibold">yoki</span>
-          </div>
-        </div>
-
         <OAuthButtons
           nextPath={nextPath}
           googleEnabled={authStatus.google}
-          appleEnabled={authStatus.apple}
+          appleEnabled={false}
           supabaseReady={authStatus.supabaseReady}
+          allowApple={false}
         />
+
+        <div className="pt-2 text-center">
+          <p className="text-[11px] text-muted-foreground">
+            Kirgandan so&apos;ng, buyurtmalarni yetkazib berish uchun aloqa telefon raqamingiz so&apos;raladi.
+          </p>
+        </div>
       </div>
     </div>
   );

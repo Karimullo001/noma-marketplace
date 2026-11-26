@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { XaridorHeader } from "@/components/xaridor/xaridor-header";
 import { XaridorFooter } from "@/components/xaridor/xaridor-footer";
 import { RealtimeRefresh } from "@/components/shared/realtime-listener";
+import { PhonePromptModal } from "@/components/xaridor/phone-prompt-modal";
 import type { Category, Profile } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,7 @@ export default async function XaridorLayout({
         favoritesCount={favoritesCount}
       />
       <main className="flex-1">{children}</main>
+      <PhonePromptModal />
       <XaridorFooter />
     </div>
   );

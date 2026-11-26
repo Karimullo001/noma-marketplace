@@ -37,7 +37,9 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/telegram") ||
-    pathname === "/xaridor/tg"
+    pathname === "/xaridor/tg" ||
+    pathname === "/sotuvchi/tg" ||
+    pathname === "/admin/tg"
   ) {
     return response;
   }

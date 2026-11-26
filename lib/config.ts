@@ -33,6 +33,21 @@ export function isTelegramConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_CHAT_ID);
 }
 
+export function isOpenAIConfigured(): boolean {
+  return Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith("sk-"));
+}
+
+export function getAdminChatIds(): string[] {
+  const raw = process.env.TELEGRAM_ADMIN_CHAT_ID || "7121005635,8826379163";
+  return raw.split(",").map((id) => id.trim()).filter(Boolean);
+}
+
+export function isAdminChatId(chatId?: string | number | null): boolean {
+  if (!chatId) return false;
+  const ids = getAdminChatIds();
+  return ids.includes(chatId.toString().trim());
+}
+
 export function getSellerCodeExpiryHours(): number {
   const parsed = Number(process.env.SELLER_CODE_EXPIRY_HOURS || 24);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 24;

@@ -161,6 +161,7 @@ async function handleSellerStatus(chatId: string | number, telegramId?: number) 
         `Yangi buyurtmalar kelishi bilan ushbu bot sizga xabar beradi.`,
       reply_markup: {
         inline_keyboard: [
+          [{ text: "📱 Sotuvchi Mini App", web_app: { url: `${TELEGRAM_CONFIG.siteUrl}/sotuvchi/tg` } }],
           [{ text: "🏪 Do'kon kabineti", url: `${TELEGRAM_CONFIG.siteUrl}/sotuvchi` }],
           [{ text: "📦 Ombor holati", callback_data: "check_stock" }],
         ],

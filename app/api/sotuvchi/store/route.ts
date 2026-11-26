@@ -35,6 +35,8 @@ export async function POST(request: Request) {
   const socialLinks: Record<string, string> = {};
   if (parsed.data.telegram) socialLinks.telegram = parsed.data.telegram;
   if (parsed.data.instagram) socialLinks.instagram = parsed.data.instagram;
+  if (parsed.data.banner_url) socialLinks.banner_url = parsed.data.banner_url;
+  if (parsed.data.working_hours) socialLinks.working_hours = parsed.data.working_hours;
 
   if (guard.ctx.store) {
     const { data, error } = await supabase
