@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { updateSessionAndGuardRoutes } from "@/lib/supabase/middleware";
 
+export const runtime = "nodejs";
+
 export async function middleware(request: NextRequest) {
   return updateSessionAndGuardRoutes(request);
 }

@@ -25,8 +25,14 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
     return NextResponse.redirect(new URL("/xaridor", request.url));
   }
 
-  // Allow auth callback and public API routes
-  if (pathname.startsWith("/auth/callback") || pathname.startsWith("/api/health") || pathname.startsWith("/api/auth")) {
+  // Allow auth callback, telegram webhooks, health check, and public API routes
+  if (
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/api/health") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/telegram") ||
+    pathname === "/xaridor/tg"
+  ) {
     return response;
   }
 
