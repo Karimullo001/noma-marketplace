@@ -7,6 +7,7 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient | nul
   if (!isSupabaseConfigured()) return null;
 
   const cookieStore = cookies();
+  const isProduction = process.env.NODE_ENV === "production";
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +20,12 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient | nul
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                path: options?.path ?? "/",
+                sameSite: options?.sameSite ?? "lax",
+                secure: isProduction,
+              })
             );
           } catch {
             // Called from a Server Component where cookies cannot be mutated directly

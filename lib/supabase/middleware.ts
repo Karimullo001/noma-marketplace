@@ -18,14 +18,20 @@ const PRIVATE_CUSTOMER_PREFIXES = [
 ];
 
 export async function updateSessionAndGuardRoutes(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
   const { pathname } = request.nextUrl;
 
+  // Root redirects to customer marketplace
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/xaridor", request.url));
   }
 
-  // Allow auth callback, telegram webhooks, health check, and public API routes
+  // Allow auth callback, telegram webhooks, health check, and public API routes cleanly
   if (
     pathname.startsWith("/auth/callback") ||
     pathname.startsWith("/api/health") ||
@@ -42,14 +48,28 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
     pathname === "/admin/kirish";
 
   const isPrivateCustomer = PRIVATE_CUSTOMER_PREFIXES.some((p) => pathname.startsWith(p));
-  const isSellerOnboarding = pathname.startsWith("/sotuvchi/ariza") || pathname.startsWith("/sotuvchi/tasdiqlash") || pathname.startsWith("/sotuvchi/dokon-yaratish");
+  const isSellerOnboarding =
+    pathname.startsWith("/sotuvchi/ariza") ||
+    pathname.startsWith("/sotuvchi/tasdiqlash") ||
+    pathname.startsWith("/sotuvchi/dokon-yaratish");
   const isSellerRoute = pathname.startsWith("/sotuvchi") && pathname !== "/sotuvchi/kirish";
   const isAdminRoute = pathname.startsWith("/admin") && pathname !== "/admin/kirish";
 
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Helper to preserve any refreshed cookies across redirects
+  function redirectWithCookies(targetUrl: URL): NextResponse {
+    const redirectRes = NextResponse.redirect(targetUrl);
+    response.cookies.getAll().forEach((c) => {
+      redirectRes.cookies.set(c.name, c.value, c);
+    });
+    return redirectRes;
+  }
+
   if (!isSupabaseConfigured()) {
-    if (isPrivateCustomer) return NextResponse.redirect(new URL("/xaridor/kirish", request.url));
-    if (isSellerRoute) return NextResponse.redirect(new URL("/sotuvchi/kirish", request.url));
-    if (isAdminRoute) return NextResponse.redirect(new URL("/admin/kirish", request.url));
+    if (isPrivateCustomer) return redirectWithCookies(new URL("/xaridor/kirish", request.url));
+    if (isSellerRoute) return redirectWithCookies(new URL("/sotuvchi/kirish", request.url));
+    if (isAdminRoute) return redirectWithCookies(new URL("/admin/kirish", request.url));
     return response;
   }
 
@@ -63,9 +83,13 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, {
+              ...options,
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+              secure: isProduction,
+            })
           );
         },
       },
@@ -77,9 +101,9 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    if (isPrivateCustomer) return NextResponse.redirect(new URL("/xaridor/kirish", request.url));
-    if (isSellerRoute) return NextResponse.redirect(new URL("/sotuvchi/kirish", request.url));
-    if (isAdminRoute) return NextResponse.redirect(new URL("/admin/kirish", request.url));
+    if (isPrivateCustomer) return redirectWithCookies(new URL("/xaridor/kirish", request.url));
+    if (isSellerRoute) return redirectWithCookies(new URL("/sotuvchi/kirish", request.url));
+    if (isAdminRoute) return redirectWithCookies(new URL("/admin/kirish", request.url));
     return response;
   }
 
@@ -94,33 +118,42 @@ export async function updateSessionAndGuardRoutes(request: NextRequest) {
   const isSuspended = Boolean(profile?.is_suspended);
 
   if (isSuspended && !isLoginRoute) {
-    return NextResponse.redirect(new URL("/xaridor/kirish?error=suspended", request.url));
+    return redirectWithCookies(new URL("/xaridor/kirish?error=suspended", request.url));
+  }
+
+  // If already logged in, redirect away from login page if no error present
+  if (isLoginRoute && !request.nextUrl.searchParams.has("error")) {
+    if (pathname === "/xaridor/kirish") {
+      return redirectWithCookies(new URL("/xaridor", request.url));
+    }
+    if (pathname === "/sotuvchi/kirish") {
+      if (role === "seller") return redirectWithCookies(new URL("/sotuvchi", request.url));
+      return redirectWithCookies(new URL("/sotuvchi/ariza", request.url));
+    }
+    if (pathname === "/admin/kirish" && role === "admin") {
+      return redirectWithCookies(new URL("/admin", request.url));
+    }
   }
 
   // Strict Backend RBAC across the three cabinets
   if (isAdminRoute) {
     if (role !== "admin" || !isAdminEmail(user.email)) {
-      return NextResponse.redirect(new URL("/admin/kirish?error=forbidden", request.url));
+      return redirectWithCookies(new URL("/admin/kirish?error=forbidden", request.url));
     }
   }
 
   if (isSellerRoute) {
     if (role === "admin") {
-      return NextResponse.redirect(new URL("/admin", request.url));
+      return redirectWithCookies(new URL("/admin", request.url));
     }
     if (!isSellerOnboarding && role !== "seller") {
-      return NextResponse.redirect(new URL("/sotuvchi/ariza", request.url));
+      return redirectWithCookies(new URL("/sotuvchi/ariza", request.url));
     }
   }
 
   if (isPrivateCustomer && role !== "customer") {
-    if (role === "seller") return NextResponse.redirect(new URL("/sotuvchi", request.url));
-    if (role === "admin") return NextResponse.redirect(new URL("/admin", request.url));
-  }
-
-  // Keep public customer pages accessible cleanly
-  if (PUBLIC_CUSTOMER_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return response;
+    if (role === "seller") return redirectWithCookies(new URL("/sotuvchi", request.url));
+    if (role === "admin") return redirectWithCookies(new URL("/admin", request.url));
   }
 
   return response;
