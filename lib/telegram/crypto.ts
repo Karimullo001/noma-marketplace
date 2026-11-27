@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { TelegramUser } from "./types";
+import { TELEGRAM_CONFIG } from "./config";
 
 /**
  * Validates Telegram Mini App WebApp initData string using HMAC-SHA256.
@@ -21,6 +22,7 @@ export function validateTelegramWebAppData(
   }
 
   try {
+    // Support both raw query string and URL-encoded variants
     const params = new URLSearchParams(initData);
     const hash = params.get("hash");
     if (!hash) {
@@ -83,6 +85,66 @@ export function validateTelegramWebAppData(
     const message = err instanceof Error ? err.message : "Validation exception";
     return { valid: false, error: message };
   }
+}
+
+/**
+ * Validates initData against ALL configured bot tokens (customer, seller, admin).
+ * Returns the first successful validation result, or the last error.
+ * This handles cases where a user might open a Mini App via any bot.
+ */
+export function validateTelegramWebAppDataMultiToken(
+  initData: string,
+  preferredBotToken?: string,
+  maxAgeSeconds: number = 86400
+): {
+  valid: boolean;
+  user?: TelegramUser;
+  authDate?: number;
+  queryId?: string;
+  error?: string;
+  matchedBot?: string;
+} {
+  if (!initData) {
+    return { valid: false, error: "Missing initData" };
+  }
+
+  // Build ordered list: preferred token first, then all others (deduplicated)
+  const tokenMap: Array<{ label: string; token: string }> = [];
+  const seen = new Set<string>();
+
+  if (preferredBotToken && preferredBotToken.length > 10) {
+    tokenMap.push({ label: "preferred", token: preferredBotToken });
+    seen.add(preferredBotToken);
+  }
+
+  const allTokens = [
+    { label: "customer", token: TELEGRAM_CONFIG.customerBotToken },
+    { label: "seller", token: TELEGRAM_CONFIG.sellerBotToken },
+    { label: "admin", token: TELEGRAM_CONFIG.adminBotToken },
+  ];
+
+  for (const t of allTokens) {
+    if (t.token && t.token.length > 10 && !seen.has(t.token)) {
+      tokenMap.push(t);
+      seen.add(t.token);
+    }
+  }
+
+  if (tokenMap.length === 0) {
+    return { valid: false, error: "No bot tokens configured" };
+  }
+
+  let lastError = "Invalid cryptographic signature";
+
+  for (const { label, token } of tokenMap) {
+    const result = validateTelegramWebAppData(initData, token, maxAgeSeconds);
+    if (result.valid) {
+      return { ...result, matchedBot: label };
+    }
+    lastError = result.error || lastError;
+  }
+
+  return { valid: false, error: lastError };
 }
 
 /**

@@ -27,7 +27,7 @@ const ERROR_MESSAGES: Record<string, { title: string; desc: string }> = {
   },
   exchange_failed: {
     title: "Sessiyani tasdiqlashda xatolik",
-    desc: "Google sessiyasi tasdiqlanmadi. Iltimos, qaytadan kiring.",
+    desc: "Google sessiyasi tasdiqlanmadi. Bu PKCE cookie muddati tugaganligi yoki Supabase kalitlari noto'g'riligi sababli bo'lishi mumkin. Iltimos, Incognito rejimida qaytadan kiring.",
   },
   auth_failed: {
     title: "Avtorizatsiya amalga oshmadi",

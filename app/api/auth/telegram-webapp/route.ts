@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { TELEGRAM_CONFIG } from "@/lib/telegram/config";
-import { validateTelegramWebAppData } from "@/lib/telegram/crypto";
+import { validateTelegramWebAppDataMultiToken } from "@/lib/telegram/crypto";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "initData mavjud emas" }, { status: 400 });
     }
 
-    // Cryptographic validation against Customer bot token
-    const validation = validateTelegramWebAppData(
+    // Cryptographic validation — try customer token first, then all others
+    const validation = validateTelegramWebAppDataMultiToken(
       initData,
       TELEGRAM_CONFIG.customerBotToken,
       86400 // 24 hours max age

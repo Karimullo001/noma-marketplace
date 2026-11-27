@@ -25,19 +25,19 @@ export async function POST(req: NextRequest) {
       const firstName = from?.first_name || "Hurmatli mijoz";
 
       await sendTelegramMessage("customer", chatId, {
-        text: `Assalomu alaykum, <b>${firstName}</b>! 🛍️\n\n<b>NOMA</b> — Namangan shahrining moda va kiyim-kechak marketpleysiga xush kelibsiz.\n\nUyingizdan chiqmasdan turib shahrimizdagi eng yaxshi do'konlarning real ombor qoldiqlari, o'lchamlari va narxlarini ko'ring hamda kuryer orqali buyurtma bering!`,
+        text: `👋 <b>Xush kelibsiz, hurmatli ${firstName}!</b>\n\n🛍️ <b>NOMA</b> — Namangan shahrining eng zamonaviy kiyim-kechak va moda bozoriga xush kelibsiz!\n\nBu yerda siz:\n✨ Shahrimizdagi barcha do'konlarning real ombordagi mahsulotlarini ko'rishingiz\n📏 O'lchamlar va narxlarni solishtirishingiz\n🚚 Uyingizdan chiqmasdan buyurtma berishingiz mumkin\n\n<i>Quyidagi tugmani bosib, do'konni oching:</i>`,
         reply_markup: {
           inline_keyboard: [
             [
               {
-                text: "🛍️ Do'konni ochish (Mini App)",
+                text: "🛍️ Do'konni ochish",
                 web_app: { url: `${siteUrl}/xaridor/tg` },
               },
             ],
             [
               {
-                text: "🌐 Sayt orqali kirish",
-                url: `${siteUrl}/xaridor`,
+                text: "✨ AI Stilist — Look tayyor!",
+                web_app: { url: `${siteUrl}/xaridor/ai-stilist` },
               },
             ],
             [

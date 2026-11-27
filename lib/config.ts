@@ -4,7 +4,10 @@ export const APP_CONFIG = {
   supportedCities: ["Namangan"] as const, // Architecture supports adding more cities cleanly
   currency: process.env.NEXT_PUBLIC_CURRENCY || "UZS",
   timezone: process.env.NEXT_PUBLIC_TIMEZONE || "Asia/Tashkent",
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000"),
 } as const;
 
 export function isSupabaseConfigured(): boolean {

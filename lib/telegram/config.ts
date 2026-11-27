@@ -21,8 +21,10 @@ export const TELEGRAM_CONFIG = {
   // Webhook secret for request verification
   webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || "noma-telegram-webhook-secret-2026",
 
-  // Base Site URL
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  // Base Site URL — prefer explicit, then Vercel auto, then localhost
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000"),
 } as const;
 
 export type BotType = "customer" | "seller" | "admin";
