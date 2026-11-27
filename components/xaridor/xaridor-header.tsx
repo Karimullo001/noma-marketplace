@@ -78,17 +78,17 @@ export function XaridorHeader({
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               href="/xaridor/ai-stilist"
-              className="text-amber-300 hover:text-white transition inline-flex items-center gap-1 font-bold"
+              className="text-amber-300 hover:text-white transition inline-flex items-center gap-1 font-bold whitespace-nowrap"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>AI Stilist (Look)</span>
+              <span>AI Stilist</span>
             </Link>
             <Link
               href="/sotuvchi"
-              className="hover:text-accent-200 transition inline-flex items-center gap-1 font-medium"
+              className="hidden sm:inline-flex hover:text-accent-200 transition items-center gap-1 font-medium whitespace-nowrap"
             >
               <StoreIcon className="w-3.5 h-3.5 text-accent-400" />
               <span>Sotuvchi kabineti</span>

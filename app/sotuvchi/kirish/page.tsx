@@ -55,7 +55,7 @@ export default function SotuvchiKirishPage({
           </Link>
           <h1 className="text-2xl font-black text-primary">Sotuvchi sifatida kirish</h1>
           <p className="text-xs text-muted-foreground">
-            Do&apos;koningizni boshqarish yoki yangi do&apos;kon ochishga ariza yuborish uchun Google (Gmail) yoki Apple ID orqali kiring.
+            Do&apos;koningizni boshqarish yoki yangi do&apos;kon ochishga ariza yuborish uchun Google (Gmail) orqali kiring.
           </p>
         </div>
 
@@ -73,15 +73,16 @@ export default function SotuvchiKirishPage({
           <OAuthButtons
             nextPath="/sotuvchi"
             googleEnabled={authStatus.google}
-            appleEnabled={authStatus.apple}
+            appleEnabled={false}
             supabaseReady={authStatus.supabaseReady}
+            allowApple={false}
           />
 
           <div className="p-3.5 rounded-2xl bg-muted/60 border border-border text-xs text-muted-foreground leading-relaxed">
             <strong className="text-primary block mb-1">Yangi sotuvchilar uchun tartib:</strong>
-            1. Google/Apple bilan kiring. <br />
-            2. &quot;Ariza yuborish&quot; tugmasini bosing. <br />
-            3. Administrator Telegram orqali bergan bir martalik taklif kodini tasdiqlang.
+            1. Google (Gmail) bilan kiring. <br />
+            2. Bir martalik kod admin bot / Mini Appga yuboriladi. <br />
+            3. Admin bergan kodni kiriting va do&apos;koningizni oching.
           </div>
         </div>
       </div>

@@ -50,6 +50,7 @@ export function AiStylistClient() {
   const [look, setLook] = useState<LookResult | null>(null);
   const [remainingTrials, setRemainingTrials] = useState<number>(5);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [requireAuth, setRequireAuth] = useState(false);
   const [copiedCard, setCopiedCard] = useState(false);
   const [guestId, setGuestId] = useState<string>("");
 
@@ -87,7 +88,10 @@ export function AiStylistClient() {
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        if (data.requiresPayment) {
+        if (data.requireAuth || res.status === 401) {
+          setRequireAuth(true);
+          setError(data.error || "AI Stilistdan foydalanish uchun avval Google (Gmail) orqali kiring.");
+        } else if (data.requiresPayment) {
           setShowPaymentModal(true);
         } else {
           setError(data.error || "Obraz yaratishda xatolik yuz berdi.");
@@ -194,9 +198,20 @@ export function AiStylistClient() {
         </div>
 
         {error && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-            <span>{error}</span>
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-3">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span>{error}</span>
+            </div>
+            {requireAuth && (
+              <Link
+                href="/xaridor/kirish?next=/xaridor/ai-stilist"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition"
+              >
+                <span>Google (Gmail) orqali kirish</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
         )}
 

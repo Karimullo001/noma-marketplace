@@ -49,7 +49,18 @@ export async function POST(req: NextRequest) {
       if (user) userId = user.id;
     }
 
-    const trackerId = userId ? `user:${userId}` : `guest:${guestId || req.ip || "unknown"}`;
+    if (!userId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          requireAuth: true,
+          error: "AI Stilistdan foydalanish uchun avval Google (Gmail) orqali hisobingizga kiring.",
+        },
+        { status: 401 }
+      );
+    }
+
+    const trackerId = `user:${userId}`;
 
     // Count previous AI look generations
     let usedCount = 0;
@@ -72,7 +83,7 @@ export async function POST(req: NextRequest) {
         freeLimit: FREE_TRIALS_LIMIT,
         price: LOOK_PRICE_UZS,
         paymentCard: PAYMENT_CARD,
-        error: `Siz 5 ta bepul imkoniyatdan foydalandingiz. Yangi look yaratish narxi: 5,000 so'm. To'lov kartasi: ${PAYMENT_CARD}`,
+        error: `Siz 5 ta bepul imkoniyatdan foydalandingiz. Cheksiz AI Stilist oylik obunasi: oyiga 5,000 so'm. To'lov kartasi: ${PAYMENT_CARD}`,
       });
     }
 

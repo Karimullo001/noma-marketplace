@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
     let sessionEstablished = false;
 
     if (linkData?.properties?.hashed_token) {
+      const isProduction = process.env.NODE_ENV === "production";
       const supabaseServer = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -134,7 +135,12 @@ export async function POST(req: NextRequest) {
             setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
               try {
                 cookiesToSet.forEach(({ name, value, options }) =>
-                  cookieStore.set(name, value, options)
+                  cookieStore.set(name, value, {
+                    ...options,
+                    path: options?.path ?? "/",
+                    sameSite: options?.sameSite ?? "lax",
+                    secure: isProduction,
+                  })
                 );
               } catch {}
             },
