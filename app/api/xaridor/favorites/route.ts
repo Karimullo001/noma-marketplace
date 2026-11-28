@@ -6,7 +6,7 @@ import { z } from "zod";
 const favSchema = z.object({ product_id: z.string().uuid() });
 
 export async function GET() {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   const supabase = await createServerSupabaseClient();
@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;

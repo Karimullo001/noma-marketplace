@@ -23,18 +23,18 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   const complaints = (logs || []).map((l) => {
-    const payload = (l.payload || {}) as Record<string, unknown>;
+    const details = (l.details || {}) as Record<string, unknown>;
     return {
       id: l.id,
       reporter_id: l.actor_id,
-      reporter_role: l.actor_role || "customer",
-      reporter_name: (payload.reporter_name as string) || "Foydalanuvchi",
-      reporter_phone: (payload.reporter_phone as string) || "",
-      subject: (payload.subject as string) || "Murojaat",
-      description: (payload.description as string) || "",
-      target_type: (payload.target_type as string) || "platform",
-      status: (payload.status as string) || "pending",
-      admin_notes: (payload.admin_notes as string) || "",
+      reporter_role: (details.actor_role as string) || "customer",
+      reporter_name: (details.reporter_name as string) || "Foydalanuvchi",
+      reporter_phone: (details.reporter_phone as string) || "",
+      subject: (details.subject as string) || "Murojaat",
+      description: (details.description as string) || "",
+      target_type: (details.target_type as string) || "platform",
+      status: (details.status as string) || "pending",
+      admin_notes: (details.admin_notes as string) || "",
       created_at: l.created_at,
     };
   });
@@ -81,10 +81,11 @@ export async function POST(req: NextRequest) {
     .from("audit_logs")
     .insert({
       actor_id: ctx.userId,
-      actor_role: ctx.profile.role,
+      actor_email: ctx.email,
       action: "complaint_filed",
-      target_type: "complaint",
-      payload: {
+      entity_type: "complaint",
+      details: {
+        actor_role: ctx.profile.role,
         reporter_name: reporterName,
         reporter_phone: reporterPhone,
         subject,
@@ -140,7 +141,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: existing } = await admin
     .from("audit_logs")
-    .select("payload")
+    .select("details")
     .eq("id", body.id)
     .eq("action", "complaint_filed")
     .single();
@@ -149,15 +150,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Shikoyat topilmadi" }, { status: 404 });
   }
 
-  const updatedPayload = {
-    ...(existing.payload as Record<string, unknown>),
+  const updatedDetails = {
+    ...((existing.details as Record<string, unknown>) || {}),
     status: body.status,
-    admin_notes: body.admin_notes ?? (existing.payload as Record<string, unknown>).admin_notes,
+    admin_notes: body.admin_notes ?? (existing.details as Record<string, unknown>)?.admin_notes,
   };
 
   const { error } = await admin
     .from("audit_logs")
-    .update({ payload: updatedPayload })
+    .update({ details: updatedDetails })
     .eq("id", body.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

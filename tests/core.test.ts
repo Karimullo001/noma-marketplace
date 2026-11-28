@@ -56,24 +56,45 @@ describe("Zod Validation Schemas", () => {
     expect(res.success).toBe(false);
   });
 
-  it("enforces cash_on_delivery only at checkout", () => {
-    const valid = checkoutSchema.safeParse({
+  it("enforces supported delivery payment methods and offer acceptance at checkout", () => {
+    const validCash = checkoutSchema.safeParse({
+      customer_name: "Ali Valiyev",
+      customer_phone: "+998901234567",
+      delivery_city: "Namangan",
+      delivery_address: "Boburshoh ko'chasi 14",
+      payment_method: "cash_on_delivery",
+      offer_accepted: true,
+    });
+    expect(validCash.success).toBe(true);
+
+    const validCard = checkoutSchema.safeParse({
+      customer_name: "Ali Valiyev",
+      customer_phone: "+998901234567",
+      delivery_city: "Namangan",
+      delivery_address: "Boburshoh ko'chasi 14",
+      payment_method: "card_on_delivery",
+      offer_accepted: true,
+    });
+    expect(validCard.success).toBe(true);
+
+    const invalidMethod = checkoutSchema.safeParse({
+      customer_name: "Ali Valiyev",
+      customer_phone: "+998901234567",
+      delivery_city: "Namangan",
+      delivery_address: "Boburshoh ko'chasi 14",
+      payment_method: "click",
+      offer_accepted: true,
+    });
+    expect(invalidMethod.success).toBe(false);
+
+    const missingOffer = checkoutSchema.safeParse({
       customer_name: "Ali Valiyev",
       customer_phone: "+998901234567",
       delivery_city: "Namangan",
       delivery_address: "Boburshoh ko'chasi 14",
       payment_method: "cash_on_delivery",
     });
-    expect(valid.success).toBe(true);
-
-    const invalid = checkoutSchema.safeParse({
-      customer_name: "Ali Valiyev",
-      customer_phone: "+998901234567",
-      delivery_city: "Namangan",
-      delivery_address: "Boburshoh ko'chasi 14",
-      payment_method: "click",
-    });
-    expect(invalid.success).toBe(false);
+    expect(missingOffer.success).toBe(false);
   });
 
   it("rejects malformed invitation codes", () => {

@@ -5,7 +5,7 @@ import { checkoutSchema } from "@/lib/validation/schemas";
 import { notifyOrderCreated } from "@/lib/telegram/events";
 
 export async function POST(request: Request) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;
@@ -26,14 +26,22 @@ export async function POST(request: Request) {
   const adminClient = createAdminSupabaseClient();
   if (!adminClient) return NextResponse.json({ error: "Server bazasi sozlanmagan" }, { status: 503 });
 
+  const paymentLabel =
+    parsed.data.payment_method === "card_on_delivery"
+      ? "To'lov: Karta orqali"
+      : "To'lov: Naqd pul";
+  const combinedNotes = [paymentLabel, parsed.data.delivery_notes?.trim()]
+    .filter(Boolean)
+    .join(" | ");
+
   const { data: result, error } = await adminClient.rpc("checkout_cart", {
     p_customer_id: guard.ctx.userId,
     p_customer_name: parsed.data.customer_name,
     p_customer_phone: parsed.data.customer_phone,
     p_delivery_city: parsed.data.delivery_city,
     p_delivery_address: parsed.data.delivery_address,
-    p_delivery_notes: parsed.data.delivery_notes ?? null,
-    p_payment_method: parsed.data.payment_method,
+    p_delivery_notes: combinedNotes || null,
+    p_payment_method: "cash_on_delivery",
   });
 
   if (error || !result?.success) {

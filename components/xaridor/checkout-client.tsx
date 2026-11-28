@@ -3,10 +3,18 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Store as StoreIcon, AlertCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Store as StoreIcon,
+  AlertCircle,
+  MapPin,
+  Banknote,
+  CreditCard,
+  ShieldCheck,
+  Loader2,
+} from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { APP_CONFIG } from "@/lib/config";
-import { getAvailablePaymentMethods } from "@/lib/payments/provider";
 import type { Address, CartItem, Profile, Store } from "@/types/database";
 
 interface CreatedOrderSummary {
@@ -32,12 +40,14 @@ export function CheckoutClient({
   const [customerPhone, setCustomerPhone] = useState(defaultAddr?.phone || profile.phone || "+998");
   const [city, setCity] = useState(defaultAddr?.city || APP_CONFIG.defaultCity);
   const [address, setAddress] = useState(defaultAddr?.street_address || "");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
   const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash_on_delivery" | "card_on_delivery">("cash_on_delivery");
+  const [offerAccepted, setOfferAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdOrders, setCreatedOrders] = useState<CreatedOrderSummary[] | null>(null);
-
-  const paymentMethods = getAvailablePaymentMethods();
 
   // Group items by store
   const storeMap = new Map<string, { store: Store; items: CartItem[]; subtotal: number }>();
@@ -56,11 +66,46 @@ export function CheckoutClient({
   const groups = Array.from(storeMap.values());
   const grandSubtotal = groups.reduce((s, g) => s + g.subtotal, 0);
 
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Brauzeringiz joylashuvni aniqlashni qo'llab-quvvatlamaydi.");
+      return;
+    }
+    setLocating(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setCoords({ lat, lng });
+        if (!address.trim()) {
+          setAddress(`Namangan (${lat}, ${lng})`);
+        }
+        setLocating(false);
+      },
+      () => {
+        setError("Joylashuvga ruxsat berilmadi. Manzilni qo'lda kiriting.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!offerAccepted) {
+      setError("Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring.");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const fullAddress = coords
+        ? `${address.trim()} [Xarita: ${coords.lat}, ${coords.lng}]`
+        : address.trim();
+
       const res = await fetch("/api/xaridor/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,9 +113,10 @@ export function CheckoutClient({
           customer_name: customerName,
           customer_phone: customerPhone,
           delivery_city: city,
-          delivery_address: address,
+          delivery_address: fullAddress,
           delivery_notes: notes || undefined,
-          payment_method: "cash_on_delivery",
+          payment_method: paymentMethod,
+          offer_accepted: true,
         }),
       });
       const data = await res.json();
@@ -94,9 +140,9 @@ export function CheckoutClient({
           <CheckCircle2 className="w-8 h-8" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-2xl font-black text-primary">Buyurtmalaringiz qabul qilindi!</h2>
+          <h2 className="text-2xl font-black text-primary">Buyurtmalaringiz yuborildi!</h2>
           <p className="text-xs text-muted-foreground">
-            Har bir do&apos;kon uchun alohida buyurtma yaratildi va mahsulot qoldiqlari band qilindi.
+            Buyurtmangiz sotuvchiga yuborildi. Sotuvchi tasdiqlaganidan so&apos;ng sizga xabar beriladi.
           </p>
         </div>
         <div className="space-y-2 text-left">
@@ -169,10 +215,21 @@ export function CheckoutClient({
             </select>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-primary block mb-1">
-              Yetkazib berish manzili (mahalla, ko&apos;cha, uy) *
-            </label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-primary">
+                Yetkazib berish manzili (qo&apos;lda yoki xaritadan) *
+              </label>
+              <button
+                type="button"
+                onClick={handleDetectLocation}
+                disabled={locating}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-50 text-accent-700 hover:bg-accent-100 text-[11px] font-bold transition"
+              >
+                {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                <span>{locating ? "Aniqlanmoqda..." : "Xaritadan belgilash"}</span>
+              </button>
+            </div>
             <input
               type="text"
               required
@@ -181,6 +238,19 @@ export function CheckoutClient({
               placeholder="Masalan: Boburshoh ko'chasi, 14-uy, 2-xonadon"
               className="w-full h-10 rounded-xl border border-border px-3 text-sm bg-background"
             />
+            {coords && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-[11px] text-emerald-900">
+                <span>📍 Xarita nuqtasi belgilandi: {coords.lat}, {coords.lng}</span>
+                <a
+                  href={`https://maps.google.com/?q=${coords.lat},${coords.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold underline"
+                >
+                  Xaritada ko&apos;rish
+                </a>
+              </div>
+            )}
           </div>
 
           <div>
@@ -197,29 +267,70 @@ export function CheckoutClient({
 
         <div className="bg-white rounded-2xl border border-border p-6 space-y-3">
           <h2 className="text-base font-bold text-primary">2. To&apos;lov usuli</h2>
-          {paymentMethods.map((pm) => (
-            <label
-              key={pm.id}
-              className={`flex items-start gap-3 p-3.5 rounded-xl border text-xs ${
-                pm.enabled
-                  ? "border-accent bg-accent-50/40 cursor-pointer"
-                  : "border-border bg-muted/40 opacity-60 cursor-not-allowed"
-              }`}
-            >
-              <input
-                type="radio"
-                name="payment_method"
-                checked={pm.id === "cash_on_delivery"}
-                disabled={!pm.enabled}
-                readOnly
-                className="mt-0.5"
-              />
-              <div>
-                <div className="font-bold text-primary">{pm.name}</div>
-                <div className="text-muted-foreground">{pm.description}</div>
-              </div>
-            </label>
-          ))}
+
+          <label
+            className={`flex items-start gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition ${
+              paymentMethod === "cash_on_delivery"
+                ? "border-accent bg-accent-50/40"
+                : "border-border bg-white hover:bg-muted/30"
+            }`}
+          >
+            <input
+              type="radio"
+              name="payment_method"
+              checked={paymentMethod === "cash_on_delivery"}
+              onChange={() => setPaymentMethod("cash_on_delivery")}
+              className="mt-0.5"
+            />
+            <Banknote className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-primary">Naqd pul (yetkazib berilganda)</div>
+              <div className="text-muted-foreground">Buyurtmani ko&apos;rib, tekshirgandan so&apos;ng kuryerga naqd to&apos;lang.</div>
+            </div>
+          </label>
+
+          <label
+            className={`flex items-start gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition ${
+              paymentMethod === "card_on_delivery"
+                ? "border-accent bg-accent-50/40"
+                : "border-border bg-white hover:bg-muted/30"
+            }`}
+          >
+            <input
+              type="radio"
+              name="payment_method"
+              checked={paymentMethod === "card_on_delivery"}
+              onChange={() => setPaymentMethod("card_on_delivery")}
+              className="mt-0.5"
+            />
+            <CreditCard className="w-4 h-4 text-accent-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-primary">Karta orqali (Uzcard / Humo)</div>
+              <div className="text-muted-foreground">Yetkazib berishda terminal yoki karta o&apos;tkazmasi orqali to&apos;lang.</div>
+            </div>
+          </label>
+        </div>
+
+        {/* Ommaviy oferta */}
+        <div className="bg-amber-50/80 rounded-2xl border border-amber-200 p-5 space-y-3">
+          <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+            <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>Ommaviy Oferta Shartlari</span>
+          </div>
+          <p className="text-xs text-amber-900/90 leading-relaxed">
+            Buyurtma tasdiqlangandan so&apos;ng kuryer mahsulotni manzilingizga yetkazadi. Agar xaridor buyurtmani yetkazib berilganda sababsiz rad etsa yoki qabul qilmasa, yetkazib berish (kuryer) xarajatini to&apos;lab berishi shart.
+          </p>
+          <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={offerAccepted}
+              onChange={(e) => setOfferAccepted(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-amber-400 text-accent-600 focus:ring-accent-500"
+            />
+            <span className="text-xs font-bold text-amber-950">
+              Ommaviy oferta shartlari bilan tanishdim va roziman
+            </span>
+          </label>
         </div>
       </div>
 
@@ -261,7 +372,7 @@ export function CheckoutClient({
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !offerAccepted}
           className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent-700 disabled:opacity-50 text-white text-sm font-bold transition"
         >
           {submitting ? "Buyurtma yaratilmoqda..." : "Buyurtmani tasdiqlash"}

@@ -11,7 +11,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;

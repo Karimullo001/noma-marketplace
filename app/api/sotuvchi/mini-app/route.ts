@@ -60,11 +60,26 @@ export async function GET() {
 
   const pendingOrders = orders.filter((o) => o.status === "new" || o.status === "pending").length;
 
+  const dailySeries: Array<{ date: string; label: string; orders: number; revenue: number }> = [];
+  const now = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const label = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const dayOrders = orders.filter((o) => (o.created_at || "").slice(0, 10) === key);
+    const dayRevenue = dayOrders
+      .filter((o) => o.status !== "cancelled" && o.status !== "rejected")
+      .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    dailySeries.push({ date: key, label, orders: dayOrders.length, revenue: dayRevenue });
+  }
+
   return NextResponse.json({
     store,
     categories: categories || [],
     products,
     orders,
+    dailySeries,
     stats: {
       totalOrders: orders.length,
       pendingOrders,

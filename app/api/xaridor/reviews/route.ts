@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { reviewCreateSchema } from "@/lib/validation/schemas";
 
 export async function POST(request: Request) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;

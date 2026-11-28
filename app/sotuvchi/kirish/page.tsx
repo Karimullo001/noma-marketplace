@@ -80,8 +80,8 @@ export default function SotuvchiKirishPage({
 
           <div className="p-3.5 rounded-2xl bg-muted/60 border border-border text-xs text-muted-foreground leading-relaxed">
             <strong className="text-primary block mb-1">Yangi sotuvchilar uchun tartib:</strong>
-            1. Google (Gmail) bilan kiring. <br />
-            2. Bir martalik kod admin bot / Mini Appga yuboriladi. <br />
+            1. Google (Gmail) bilan kiring.<br />
+            2. Adminga bir martalik tasdiq kodi yuboriladi.<br />
             3. Admin bergan kodni kiriting va do&apos;koningizni oching.
           </div>
         </div>

@@ -2,6 +2,7 @@ import React from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { XaridorHeader } from "@/components/xaridor/xaridor-header";
 import { XaridorFooter } from "@/components/xaridor/xaridor-footer";
+import { MobileBottomNav } from "@/components/xaridor/mobile-bottom-nav";
 import { RealtimeRefresh } from "@/components/shared/realtime-listener";
 import { PhonePromptModal } from "@/components/xaridor/phone-prompt-modal";
 import type { Category, Profile } from "@/types/database";
@@ -78,8 +79,9 @@ export default async function XaridorLayout({
         cartCount={cartCount}
         favoritesCount={favoritesCount}
       />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pb-16 md:pb-0">{children}</main>
       <PhonePromptModal />
+      <MobileBottomNav cartCount={cartCount} />
       <XaridorFooter />
     </div>
   );

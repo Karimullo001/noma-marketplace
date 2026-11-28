@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cartAddSchema, cartUpdateSchema } from "@/lib/validation/schemas";
 
 export async function GET() {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   const supabase = await createServerSupabaseClient();
@@ -31,7 +31,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const guard = await requireRole(["customer"]);
+  const guard = await requireRole(["customer", "seller", "admin"]);
   if (!guard.ok) return guard.response;
 
   let body: unknown;

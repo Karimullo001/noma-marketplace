@@ -53,7 +53,9 @@ export function AiStylistClient() {
   const [requireAuth, setRequireAuth] = useState(false);
   const [copiedCard, setCopiedCard] = useState(false);
   const [guestId, setGuestId] = useState<string>("");
+  const [usageLoaded, setUsageLoaded] = useState(false);
 
+  // Fetch actual usage count from server on mount
   useEffect(() => {
     let id = localStorage.getItem("noma_ai_guest_id");
     if (!id) {
@@ -61,6 +63,23 @@ export function AiStylistClient() {
       localStorage.setItem("noma_ai_guest_id", id);
     }
     setGuestId(id);
+
+    // Load real usage from server
+    (async () => {
+      try {
+        const res = await fetch("/api/xaridor/ai-look/usage");
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.remainingTrials === "number") {
+            setRemainingTrials(data.remainingTrials);
+          }
+        }
+      } catch {
+        // Silently fail — will show default 5
+      } finally {
+        setUsageLoaded(true);
+      }
+    })();
   }, []);
 
   const handleGenerate = async (customPrompt?: string) => {

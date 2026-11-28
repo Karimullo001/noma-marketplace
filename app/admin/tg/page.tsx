@@ -15,8 +15,10 @@ import {
   Users,
   ShoppingBag,
   Package,
+  TrendingUp,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { SimpleLineChart, type LineChartPoint } from "@/components/shared/line-chart";
 
 type AdminTab = "stats" | "complaints" | "stores" | "apps";
 
@@ -49,6 +51,23 @@ interface ApplicationItem {
   created_at: string;
 }
 
+interface DailySeries {
+  date: string;
+  label: string;
+  orders: number;
+  revenue: number;
+  users: number;
+}
+
+interface RecentOrder {
+  id: string;
+  order_number: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  customer_name: string;
+}
+
 export default function AdminMiniAppPage() {
   const [authStatus, setAuthStatus] = useState<"loading" | "ready" | "error">("loading");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -60,9 +79,13 @@ export default function AdminMiniAppPage() {
     suspendedStores: 0,
     productsCount: 0,
     ordersCount: 0,
+    pendingOrders: 0,
     gmv: 0,
     pendingComplaints: 0,
+    pendingApplications: 0,
   });
+  const [dailySeries, setDailySeries] = useState<DailySeries[]>([]);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
@@ -80,6 +103,8 @@ export default function AdminMiniAppPage() {
       }
       const data = await res.json();
       if (data.stats) setStats(data.stats);
+      setDailySeries(data.dailySeries || []);
+      setRecentOrders(data.recentOrders || []);
       setStores(data.stores || []);
       setComplaints(data.complaints || []);
       setApplications(data.applications || []);
@@ -141,6 +166,20 @@ export default function AdminMiniAppPage() {
     await loadData();
   };
 
+  // Chart data from daily series
+  const ordersChartData: LineChartPoint[] = dailySeries.map((d) => ({
+    label: d.label,
+    value: d.orders,
+  }));
+  const revenueChartData: LineChartPoint[] = dailySeries.map((d) => ({
+    label: d.label,
+    value: d.revenue,
+  }));
+  const usersChartData: LineChartPoint[] = dailySeries.map((d) => ({
+    label: d.label,
+    value: d.users,
+  }));
+
   if (authStatus === "loading") {
     return (
       <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -191,11 +230,17 @@ export default function AdminMiniAppPage() {
         {/* TAB 1: STATISTIKA */}
         {tab === "stats" && (
           <div className="space-y-3 animate-in fade-in">
+            {/* GMV Hero Card */}
             <div className="bg-gradient-to-br from-primary to-accent-950 text-white p-5 rounded-2xl shadow-md">
               <span className="text-xs text-zinc-300">Umumiy savdo aylanmasi (GMV)</span>
               <strong className="text-2xl font-black block mt-1">{formatPrice(stats.gmv)}</strong>
+              <div className="flex gap-4 mt-2 text-[11px] text-zinc-400">
+                <span>📦 {stats.ordersCount} buyurtma</span>
+                <span>⏳ {stats.pendingOrders} kutmoqda</span>
+              </div>
             </div>
 
+            {/* Stat Cards */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-border shadow-sm">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
@@ -230,6 +275,37 @@ export default function AdminMiniAppPage() {
               </div>
             </div>
 
+            {/* Line Charts */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <TrendingUp className="w-4 h-4 text-accent-600" />
+                <h3 className="text-xs font-black text-primary">So&apos;nggi 7 kun statistikasi</h3>
+              </div>
+
+              <SimpleLineChart
+                title="Buyurtmalar"
+                subtitle="Kunlik buyurtmalar soni"
+                data={ordersChartData}
+                color="#7C3AED"
+              />
+
+              <SimpleLineChart
+                title="Tushum (GMV)"
+                subtitle="Kunlik savdo aylanmasi"
+                data={revenueChartData}
+                color="#059669"
+                valueFormatter={(v) => formatPrice(v)}
+              />
+
+              <SimpleLineChart
+                title="Yangi foydalanuvchilar"
+                subtitle="Kunlik ro'yxatdan o'tganlar"
+                data={usersChartData}
+                color="#2563EB"
+              />
+            </div>
+
+            {/* Pending alerts */}
             {stats.pendingComplaints > 0 && (
               <button
                 type="button"
@@ -238,10 +314,48 @@ export default function AdminMiniAppPage() {
               >
                 <div className="flex items-center gap-2.5 text-xs font-bold">
                   <AlertTriangle className="w-5 h-5 text-rose-600" />
-                  <span>{stats.pendingComplaints} ta yangi shikoyat (jaloba) kutmoqda!</span>
+                  <span>{stats.pendingComplaints} ta yangi shikoyat kutmoqda!</span>
                 </div>
                 <span className="text-xs font-black underline">Ko&apos;rish</span>
               </button>
+            )}
+
+            {stats.pendingApplications > 0 && (
+              <button
+                type="button"
+                onClick={() => setTab("apps")}
+                className="w-full p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between text-amber-900"
+              >
+                <div className="flex items-center gap-2.5 text-xs font-bold">
+                  <FileText className="w-5 h-5 text-amber-600" />
+                  <span>{stats.pendingApplications} ta yangi sotuvchi arizasi!</span>
+                </div>
+                <span className="text-xs font-black underline">Ko&apos;rish</span>
+              </button>
+            )}
+
+            {/* Recent Orders */}
+            {recentOrders.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-black text-primary px-1">So&apos;nggi buyurtmalar</h3>
+                {recentOrders.slice(0, 5).map((o) => (
+                  <div key={o.id} className="bg-white p-3 rounded-xl border border-border flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-mono font-bold text-primary block">#{o.order_number}</span>
+                      <span className="text-muted-foreground">{o.customer_name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-primary block">{formatPrice(o.total_amount)}</span>
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                        o.status === "delivered" ? "bg-emerald-100 text-emerald-700" :
+                        o.status === "new" || o.status === "pending" ? "bg-amber-100 text-amber-700" :
+                        o.status === "cancelled" || o.status === "rejected" ? "bg-rose-100 text-rose-700" :
+                        "bg-zinc-100 text-zinc-700"
+                      }`}>{o.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -352,17 +466,23 @@ export default function AdminMiniAppPage() {
         {tab === "apps" && (
           <div className="space-y-3 animate-in fade-in">
             <h2 className="text-sm font-black text-primary px-1">Sotuvchi arizalari ({applications.length})</h2>
-            {applications.map((app) => (
-              <div key={app.id} className="bg-white p-4 rounded-2xl border border-border space-y-1">
-                <div className="flex items-center justify-between">
-                  <strong className="text-xs text-primary">{app.full_name}</strong>
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-100">
-                    {app.status}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">{app.email}</p>
+            {applications.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-border text-center text-xs text-muted-foreground">
+                Hozircha arizalar yo&apos;q.
               </div>
-            ))}
+            ) : (
+              applications.map((app) => (
+                <div key={app.id} className="bg-white p-4 rounded-2xl border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-xs text-primary">{app.full_name}</strong>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-100">
+                      {app.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">{app.email}</p>
+                </div>
+              ))
+            )}
           </div>
         )}
       </main>

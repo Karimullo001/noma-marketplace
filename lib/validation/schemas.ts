@@ -92,7 +92,10 @@ export const checkoutSchema = z.object({
   delivery_city: z.string().trim().min(2).default("Namangan"),
   delivery_address: z.string().trim().min(5, "Yetkazib berish manzilini to'liq kiriting").max(300),
   delivery_notes: z.string().trim().max(500).optional(),
-  payment_method: z.literal("cash_on_delivery"),
+  payment_method: z.enum(["cash_on_delivery", "card_on_delivery"]),
+  offer_accepted: z.literal(true, {
+    errorMap: () => ({ message: "Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring" }),
+  }),
 });
 
 export const orderStatusUpdateSchema = z.object({

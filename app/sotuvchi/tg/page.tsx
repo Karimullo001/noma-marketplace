@@ -17,10 +17,37 @@ import {
   AlertCircle,
   MessageSquareWarning,
   RefreshCw,
+  Boxes,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { SimpleLineChart, type LineChartPoint } from "@/components/shared/line-chart";
 
-type TabType = "stats" | "add" | "orders" | "store" | "support";
+type TabType = "stats" | "add" | "inventory" | "orders" | "store" | "support";
+
+interface ProductVariantItem {
+  id: string;
+  size: string;
+  color: string;
+  stock_quantity: number;
+}
+
+interface SellerProductItem {
+  id: string;
+  name: string;
+  base_price: number;
+  discount_price: number | null;
+  images: string[];
+  is_active: boolean;
+  is_archived: boolean;
+  variants: ProductVariantItem[];
+}
+
+interface DailySeries {
+  date: string;
+  label: string;
+  orders: number;
+  revenue: number;
+}
 
 interface StoreData {
   id: string;
@@ -65,7 +92,27 @@ interface OrderItem {
   }>;
 }
 
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "38", "39", "40", "41", "42", "43"];
+const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+const SHOE_SIZES = ["36", "37", "38", "39", "40", "41", "42", "43", "44", "45"];
+const ACCESSORY_SIZES = ["Standart", "S", "M", "L"];
+
+function getCategorySizeType(catName?: string, catSlug?: string): "shoes" | "accessories" | "clothing" {
+  const txt = `${catName || ""} ${catSlug || ""}`.toLowerCase();
+  if (
+    txt.includes("oyoq") ||
+    txt.includes("poyabzal") ||
+    txt.includes("tufli") ||
+    txt.includes("krossofka") ||
+    txt.includes("etik") ||
+    txt.includes("shoe")
+  ) {
+    return "shoes";
+  }
+  if (txt.includes("aksessuar") || txt.includes("sumka") || txt.includes("soat") || txt.includes("kamar")) {
+    return "accessories";
+  }
+  return "clothing";
+}
 const COLORS = [
   { name: "Qora", hex: "#111827" },
   { name: "Oq", hex: "#F9FAFB" },
@@ -82,7 +129,11 @@ export default function SellerMiniAppPage() {
 
   const [store, setStore] = useState<StoreData | null>(null);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [products, setProducts] = useState<SellerProductItem[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [stockSavingId, setStockSavingId] = useState<string | null>(null);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>("Bu mahsulotdan hozircha qolmagan");
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
@@ -91,12 +142,16 @@ export default function SellerMiniAppPage() {
     lowStockCount: 0,
   });
 
+  const [dailySeries, setDailySeries] = useState<DailySeries[]>([]);
+
   // Fast 1-min product form
   const [prodName, setProdName] = useState("");
   const [prodPrice, setProdPrice] = useState("");
   const [prodCat, setProdCat] = useState("");
   const [prodGender, setProdGender] = useState<"men" | "women" | "children" | "sport" | "accessories" | "unisex">("unisex");
-  const [prodImage, setProdImage] = useState("");
+  const [prodImageFile, setProdImageFile] = useState<File | null>(null);
+  const [prodImagePreview, setProdImagePreview] = useState<string | null>(null);
+  const [prodImageUploading, setProdImageUploading] = useState(false);
   const [prodDesc, setProdDesc] = useState("");
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["M", "L"]);
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
@@ -139,8 +194,10 @@ export default function SellerMiniAppPage() {
       if (data.categories?.[0] && !prodCat) {
         setProdCat(data.categories[0].id);
       }
+      setProducts(data.products || []);
       setOrders(data.orders || []);
       if (data.stats) setStats(data.stats);
+      setDailySeries(data.dailySeries || []);
 
       if (data.store) {
         setStName(data.store.name || "");
@@ -207,6 +264,25 @@ export default function SellerMiniAppPage() {
 
     setProdSaving(true);
     try {
+      // Upload image first if file selected
+      let imageUrl = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800";
+      if (prodImageFile) {
+        setProdImageUploading(true);
+        const formData = new FormData();
+        formData.append("file", prodImageFile);
+        const uploadRes = await fetch("/api/sotuvchi/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        setProdImageUploading(false);
+        if (!uploadRes.ok) {
+          setProdNotice(`❌ Rasm yuklanmadi: ${uploadData.error || "Xatolik"}`);
+          return;
+        }
+        imageUrl = uploadData.url;
+      }
+
       const qty = Math.max(0, parseInt(stockPerSize, 10) || 1);
       const variants = selectedSizes.map((size) => ({
         size,
@@ -225,7 +301,7 @@ export default function SellerMiniAppPage() {
           gender: prodGender,
           condition: "new",
           base_price: Number(prodPrice),
-          images: [prodImage.trim() || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800"],
+          images: [imageUrl],
           variants,
         }),
       });
@@ -239,7 +315,8 @@ export default function SellerMiniAppPage() {
       setProdNotice("✅ Mahsulot 1 daqiqada muvaffaqiyatli joylandi!");
       setProdName("");
       setProdPrice("");
-      setProdImage("");
+      setProdImageFile(null);
+      setProdImagePreview(null);
       setProdDesc("");
       await loadData();
     } catch {
@@ -283,18 +360,48 @@ export default function SellerMiniAppPage() {
     }
   };
 
-  const handleOrderStatus = async (orderId: string, newStatus: string) => {
+  const handleOrderStatus = async (orderId: string, newStatus: string, trackingNote?: string) => {
     try {
       const res = await fetch(`/api/sotuvchi/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          status: newStatus,
+          ...(trackingNote ? { tracking_note: trackingNote } : {}),
+        }),
       });
       if (res.ok) {
+        setRejectingOrderId(null);
         await loadData();
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleStockUpdate = async (variantId: string, newQty: number) => {
+    const safeQty = Math.max(0, newQty);
+    setStockSavingId(variantId);
+    try {
+      const res = await fetch("/api/sotuvchi/stock", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant_id: variantId, stock_quantity: safeQty }),
+      });
+      if (res.ok) {
+        setProducts((prev) =>
+          prev.map((p) => ({
+            ...p,
+            variants: p.variants.map((v) =>
+              v.id === variantId ? { ...v, stock_quantity: safeQty } : v
+            ),
+          }))
+        );
+      }
+    } catch {
+      // ignore
+    } finally {
+      setStockSavingId(null);
     }
   };
 
@@ -412,6 +519,25 @@ export default function SellerMiniAppPage() {
               </div>
             </div>
 
+            {/* Line Charts */}
+            {dailySeries.length > 0 && (
+              <div className="space-y-3">
+                <SimpleLineChart
+                  title="Buyurtmalar"
+                  subtitle="So'nggi 7 kun"
+                  data={dailySeries.map((d) => ({ label: d.label, value: d.orders }) as LineChartPoint)}
+                  color="#7C3AED"
+                />
+                <SimpleLineChart
+                  title="Tushum"
+                  subtitle="Kunlik savdo"
+                  data={dailySeries.map((d) => ({ label: d.label, value: d.revenue }) as LineChartPoint)}
+                  color="#059669"
+                  valueFormatter={(v) => formatPrice(v)}
+                />
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => setTab("add")}
@@ -475,7 +601,15 @@ export default function SellerMiniAppPage() {
                 <label className="text-xs font-bold text-primary block mb-1">Bo&apos;lim *</label>
                 <select
                   value={prodCat}
-                  onChange={(e) => setProdCat(e.target.value)}
+                  onChange={(e) => {
+                    const nextCatId = e.target.value;
+                    setProdCat(nextCatId);
+                    const catObj = categories.find((c) => c.id === nextCatId);
+                    const szType = getCategorySizeType(catObj?.name, catObj?.slug);
+                    if (szType === "shoes") setSelectedSizes(["40", "41", "42"]);
+                    else if (szType === "accessories") setSelectedSizes(["Standart"]);
+                    else setSelectedSizes(["M", "L"]);
+                  }}
                   className="w-full px-3 py-2.5 border border-border rounded-xl text-xs bg-white"
                 >
                   {categories.map((c) => (
@@ -512,25 +646,44 @@ export default function SellerMiniAppPage() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-primary block mb-1.5">O&apos;lchamlar (Tanlang) *</label>
-              <div className="flex flex-wrap gap-1.5">
-                {SIZES.map((sz) => (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => toggleSize(sz)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-                      selectedSizes.includes(sz)
-                        ? "bg-primary text-white border-primary"
-                        : "bg-zinc-50 text-muted-foreground border-border"
-                    }`}
-                  >
-                    {sz}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {(() => {
+              const activeCat = categories.find((c) => c.id === prodCat);
+              const sizeType = getCategorySizeType(activeCat?.name, activeCat?.slug);
+              const availableSizes =
+                sizeType === "shoes"
+                  ? SHOE_SIZES
+                  : sizeType === "accessories"
+                  ? ACCESSORY_SIZES
+                  : CLOTHING_SIZES;
+              const sizeLabel =
+                sizeType === "shoes"
+                  ? "Oyoq kiyim razmerlari *"
+                  : sizeType === "accessories"
+                  ? "O'lcham turi *"
+                  : "Kiyim razmerlari *";
+
+              return (
+                <div>
+                  <label className="text-xs font-bold text-primary block mb-1.5">{sizeLabel}</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableSizes.map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => toggleSize(sz)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          selectedSizes.includes(sz)
+                            ? "bg-primary text-white border-primary"
+                            : "bg-zinc-50 text-muted-foreground border-border"
+                        }`}
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div>
               <label className="text-xs font-bold text-primary block mb-1.5">Rang</label>
@@ -554,14 +707,32 @@ export default function SellerMiniAppPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-primary block mb-1">Rasm havolasi (URL)</label>
+              <label className="text-xs font-bold text-primary block mb-1">📷 Mahsulot rasmi</label>
               <input
-                type="url"
-                value={prodImage}
-                onChange={(e) => setProdImage(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3.5 py-2.5 border border-border rounded-xl text-xs"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setProdImageFile(file);
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setProdImagePreview(reader.result as string);
+                    reader.readAsDataURL(file);
+                  } else {
+                    setProdImagePreview(null);
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 border border-border rounded-xl text-xs bg-white file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-accent-100 file:text-accent-800"
               />
+              {prodImagePreview && (
+                <div className="mt-2 relative w-24 h-24 rounded-xl overflow-hidden border border-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={prodImagePreview} alt="Ko'rib chiqish" className="w-full h-full object-cover" />
+                </div>
+              )}
+              {prodImageUploading && (
+                <p className="text-[11px] text-accent-600 mt-1 font-semibold animate-pulse">Rasm yuklanmoqda...</p>
+              )}
             </div>
 
             <div>
@@ -583,6 +754,64 @@ export default function SellerMiniAppPage() {
               {prodSaving ? "Saqlanmoqda..." : "🚀 Darhol Sotuvga Chiqarish"}
             </button>
           </form>
+        )}
+
+        {/* TAB: OMBOR / JONLI QOLDIQ */}
+        {tab === "inventory" && (
+          <div className="space-y-3 animate-in fade-in">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-sm font-black text-primary">Ombor va qoldiqlar ({products.length})</h2>
+              <span className="text-[10px] text-muted-foreground">Jonli yangilanadi</span>
+            </div>
+            {products.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-border text-center text-xs text-muted-foreground">
+                Hozircha mahsulotlar yo&apos;q.
+              </div>
+            ) : (
+              products.map((p) => (
+                <div key={p.id} className="bg-white p-4 rounded-2xl border border-border space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-black text-primary truncate">{p.name}</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatPrice(p.discount_price ?? p.base_price)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 pt-1 border-t border-border/60">
+                    {(p.variants || []).map((v) => (
+                      <div key={v.id} className="flex items-center justify-between text-xs py-1">
+                        <span className="font-semibold text-primary">
+                          {v.size} • {v.color}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={stockSavingId === v.id || v.stock_quantity <= 0}
+                            onClick={() => handleStockUpdate(v.id, v.stock_quantity - 1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 font-bold text-primary disabled:opacity-40"
+                          >
+                            -
+                          </button>
+                          <span className={`min-w-[36px] text-center font-black ${v.stock_quantity <= 2 ? "text-rose-600" : "text-primary"}`}>
+                            {v.stock_quantity} ta
+                          </span>
+                          <button
+                            type="button"
+                            disabled={stockSavingId === v.id}
+                            onClick={() => handleStockUpdate(v.id, v.stock_quantity + 1)}
+                            className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 font-bold text-primary disabled:opacity-40"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         )}
 
         {/* TAB 3: BUYURTMALAR */}
@@ -608,21 +837,62 @@ export default function SellerMiniAppPage() {
                     <p className="font-bold text-primary pt-1">Jami: {formatPrice(ord.total_amount)}</p>
                   </div>
                   {(ord.status === "new" || ord.status === "pending") && (
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleOrderStatus(ord.id, "accepted")}
-                        className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"
-                      >
-                        ✅ Qabul qilish
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOrderStatus(ord.id, "rejected")}
-                        className="flex-1 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-bold"
-                      >
-                        ❌ Rad etish
-                      </button>
+                    <div className="space-y-2 pt-1">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOrderStatus(ord.id, "accepted")}
+                          className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+                        >
+                          ✅ Qabul qilish
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRejectingOrderId(rejectingOrderId === ord.id ? null : ord.id)}
+                          className="flex-1 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-bold"
+                        >
+                          ❌ Rad etish
+                        </button>
+                      </div>
+                      {rejectingOrderId === ord.id && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
+                          <span className="text-[11px] font-bold text-rose-900 block">Rad etish sababini tanlang:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              "Bu mahsulotdan hozircha qolmagan",
+                              "Bu razmerdan qolmagan",
+                              "Yetkazib berish hududidan tashqarida",
+                            ].map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => setRejectReason(r)}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
+                                  rejectReason === r
+                                    ? "bg-rose-600 text-white border-rose-600"
+                                    : "bg-white text-rose-800 border-rose-200"
+                                }`}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Sababni yozing..."
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-rose-200 text-xs bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleOrderStatus(ord.id, "rejected", rejectReason)}
+                            className="w-full py-2 rounded-lg bg-rose-600 text-white text-xs font-bold"
+                          >
+                            Rad etishni tasdiqlash
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                   {ord.status === "accepted" && (
@@ -810,10 +1080,11 @@ export default function SellerMiniAppPage() {
       </main>
 
       {/* Bottom Tab Bar */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-border px-2 py-2 flex items-center justify-around">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-border px-1 py-2 flex items-center justify-around">
         {[
           { id: "stats", icon: BarChart3, label: "Statistika" },
-          { id: "add", icon: PlusCircle, label: "1-Daq Tovar" },
+          { id: "add", icon: PlusCircle, label: "Qo'shish" },
+          { id: "inventory", icon: Boxes, label: "Ombor" },
           { id: "orders", icon: Package, label: "Buyurtma" },
           { id: "store", icon: StoreIcon, label: "Do'kon" },
           { id: "support", icon: AlertTriangle, label: "Shikoyat" },
